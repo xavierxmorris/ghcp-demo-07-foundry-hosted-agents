@@ -39,33 +39,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install azd
-        run: curl -fsSL https://aka.ms/install-azd.sh | bash
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
 
-      - name: Check azure.yaml parses and entry points exist
+      - run: pip install pyyaml
+
+      - name: Every agent service must have a real entry point
         run: |
           python - <<'PY'
-          import sys, pathlib, re
+          import pathlib, sys, yaml
 
-          text = pathlib.Path("azure.yaml").read_text(encoding="utf-8")
+          manifest = yaml.safe_load(pathlib.Path("azure.yaml").read_text(encoding="utf-8"))
+          services = manifest.get("services", {})
 
-          # Every agent service must point at a project dir whose entryPoint exists.
-          services = re.findall(
-              r"^  ([a-z0-9-]+):\n(?:.*\n)*?    project: (\S+)\n(?:.*\n)*?      entryPoint: (\S+)",
-              text,
-              re.MULTILINE,
-          )
-          if not services:
-              sys.exit("no agent services with codeConfiguration found in azure.yaml")
+          agents = {
+              name: svc
+              for name, svc in services.items()
+              if svc.get("host") == "azure.ai.agent"
+          }
+          if not agents:
+              sys.exit("no azure.ai.agent services found in azure.yaml")
 
           failed = False
-          for name, project, entry in services:
-              path = pathlib.Path(project) / entry
-              status = "ok" if path.is_file() else "MISSING"
-              print(f"{name}: {path} [{status}]")
-              failed |= not path.is_file()
+          for name, svc in agents.items():
+              project = svc.get("project")
+              entry = (svc.get("codeConfiguration") or {}).get("entryPoint")
+              if not project or not entry:
+                  print(f"{name}: missing project or codeConfiguration.entryPoint")
+                  failed = True
+                  continue
 
-          sys.exit("entry point missing" if failed else 0)
+              path = pathlib.Path(project) / entry
+              ok = path.is_file()
+              print(f"{name}: {path} [{'ok' if ok else 'MISSING'}]")
+              failed |= not ok
+
+              # An agent with no model binding deploys but cannot answer.
+              if "ai-project" not in (svc.get("uses") or []):
+                  print(f"{name}: does not declare `uses: [ai-project]`")
+                  failed = True
+
+          sys.exit("azure.yaml validation failed" if failed else 0)
           PY
 
   eval-datasets:

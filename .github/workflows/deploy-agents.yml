@@ -27,8 +27,33 @@ permissions:
   contents: read
 
 jobs:
+  # Skips cleanly instead of failing red when someone clones this repo without
+  # configuring OIDC. Setup instructions: docs/08-cicd.md
+  check-config:
+    name: Check deployment is configured
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        run: |
+          if [[ -n "${{ vars.AZURE_CLIENT_ID }}" && -n "${{ vars.AZURE_TENANT_ID }}" && -n "${{ vars.AZURE_SUBSCRIPTION_ID }}" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Deployment skipped"
+              echo ""
+              echo "Azure OIDC is not configured for this repository, so there is nothing to deploy."
+              echo "Set the \`AZURE_CLIENT_ID\`, \`AZURE_TENANT_ID\`, and \`AZURE_SUBSCRIPTION_ID\`"
+              echo "repository variables to enable it - see [docs/08-cicd.md](../blob/main/docs/08-cicd.md)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   deploy:
     name: Provision and deploy
+    needs: check-config
+    if: needs.check-config.outputs.configured == 'true'
     runs-on: ubuntu-latest
     environment: production
     env:
