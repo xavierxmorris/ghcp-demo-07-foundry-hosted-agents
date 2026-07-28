@@ -1,0 +1,38 @@
+{
+  "name": "Foundry hosted agents",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": { "version": "latest" },
+    "ghcr.io/devcontainers/features/github-cli:1": { "version": "latest" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "ms-azuretools.vscode-azureresourcegroups",
+        "TeamsDevApp.vscode-ai-foundry",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "editor.formatOnSave": true,
+        "[python]": { "editor.defaultFormatter": "charliermarsh.ruff" },
+        "yaml.schemas": {
+          "https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json": "azure.yaml"
+        }
+      }
+    }
+  },
+  "forwardPorts": [8088],
+  "portsAttributes": {
+    "8088": { "label": "Hosted agent (local)", "onAutoForward": "notify" }
+  },
+  "remoteUser": "vscode"
+}

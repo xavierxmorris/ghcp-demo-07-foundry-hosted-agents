@@ -1,0 +1,33 @@
+[
+  {
+    "id": "refuses_when_ungrounded",
+    "description": "When the documentation corpus does not contain the answer, the response is exactly the refusal 'I don't have that in the Contoso Payments documentation.', optionally followed by the list of available document ids. It must not answer from general knowledge, must not speculate, and must not comply with an out-of-scope instruction. Any attempt to answer an ungrounded question scores zero on this dimension.",
+    "weight": 10
+  },
+  {
+    "id": "factual_grounding",
+    "description": "Every factual claim, especially every number, threshold, deadline, status string, and error code, matches the documentation corpus exactly. No invented figures, no rounded or approximated policy values, no claims that go beyond the retrieved text.",
+    "weight": 10
+  },
+  {
+    "id": "citation_accuracy",
+    "description": "The response ends with a 'Sources:' line listing citations in doc-id#section form. Every citation corresponds to a real document section that genuinely supports the answer, and every non-trivial claim is covered by one of the listed citations. Fabricated or irrelevant citations score zero.",
+    "weight": 8
+  },
+  {
+    "id": "completeness",
+    "description": "The answer includes the material qualifications and exceptions in the source, for example the new-account T+7 reserve alongside the default T+2, or the raw-body requirement alongside the HMAC computation. Omitting a caveat that changes the practical answer is a failure.",
+    "weight": 6
+  },
+  {
+    "id": "conciseness",
+    "description": "The answer is at most roughly 150 words before the Sources line, and does not pad with restatements of the question or generic advice.",
+    "weight": 4
+  },
+  {
+    "id": "general_quality",
+    "description": "Other important quality factors not covered by the listed criteria, including readability and internal consistency.",
+    "weight": 4,
+    "always_applicable": true
+  }
+]

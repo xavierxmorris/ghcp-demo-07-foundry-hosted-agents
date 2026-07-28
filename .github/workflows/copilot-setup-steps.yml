@@ -1,0 +1,60 @@
+# Prepares the environment for the GitHub Copilot coding agent.
+#
+# The job name MUST be `copilot-setup-steps` -- that is how Copilot finds it.
+# Everything installed here is available to the agent before it starts working,
+# which is what lets it run `pytest` and verify its own changes.
+#
+# See docs/09-coding-agent.md
+name: copilot-setup-steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      # Dev tooling: this is what gives the agent a fast, honest test signal.
+      # 55 tests, no Azure, no model, ~0.12s.
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Agent runtime dependencies, so the agent can reason about real imports
+      # rather than guessing at the agent_framework API surface.
+      - name: Install agent runtime dependencies
+        run: |
+          pip install -r src/devops-triage/requirements.txt
+          pip install -r src/docs-qa/requirements.txt
+
+      # azd + Foundry extensions so the agent can read `azd ai agent --help`
+      # and validate azure.yaml. It cannot deploy -- there are no credentials
+      # in this environment, which is deliberate.
+      - name: Install azd and Foundry extensions
+        run: |
+          curl -fsSL https://aka.ms/install-azd.sh | bash
+          azd version
+          azd extension install azure.ai.agents --no-prompt || true
+          azd extension install azure.ai.projects --no-prompt || true
+
+      - name: Verify the test suite runs
+        run: pytest -q
+
+      - name: Verify the linter runs
+        run: ruff check src tests

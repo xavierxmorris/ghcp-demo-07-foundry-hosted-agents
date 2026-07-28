@@ -1,0 +1,22 @@
+# Ruff configuration.
+#
+# The agent source directories are separate deployment units -- each is zipped
+# and run standalone by Foundry -- so their modules are top-level imports rather
+# than a package. `src` tells ruff/isort to treat them that way.
+
+line-length = 100
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+  "E501",  # line length is handled by the formatter
+  "B008",  # Field(...) in a default is the documented agent_framework pattern
+  "SIM905",# the stopword list is far more readable as a wrapped string literal
+]
+
+[lint.isort]
+known-first-party = ["triage", "retrieval"]
+
+[lint.per-file-ignores]
+"tests/*" = ["SIM117"]

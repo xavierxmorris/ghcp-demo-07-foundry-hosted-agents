@@ -1,0 +1,89 @@
+{
+  "checkout-api": [
+    {
+      "title": "Checkout 5xx surge / elevated error rate",
+      "url": "https://runbooks.contoso.example/checkout-api/5xx-surge",
+      "triggers": ["5xx", "error", "errors", "failing", "500", "503", "surge", "checkout fails"],
+      "steps": [
+        "Confirm the blast radius on the Checkout API dashboard (error rate by region and by pod).",
+        "Check whether the errors correlate with a deploy in the last 4 hours; if so, roll back first and investigate after.",
+        "Inspect ledger-service dependency health -- checkout returns 503 when ledger write latency exceeds 2s.",
+        "If ledger is healthy, check the payments Postgres connection pool saturation metric.",
+        "Shed load by enabling the checkout queue-and-retry feature flag if the error rate stays above 10%."
+      ],
+      "escalate_to": "Payments Core incident commander via #payments-core-oncall"
+    },
+    {
+      "title": "Checkout latency degradation",
+      "url": "https://runbooks.contoso.example/checkout-api/latency",
+      "triggers": ["latency", "slow", "timeout", "timing out", "p99", "degraded"],
+      "steps": [
+        "Compare p50/p95/p99 against the 7 day baseline on the Checkout API dashboard.",
+        "Break the latency down by downstream call -- ledger-service, fraud-scoring, Postgres.",
+        "If fraud-scoring is the contributor, enable fail-open mode; fraud scoring is permitted to fail open.",
+        "If Postgres is the contributor, check for long-running queries and recent schema migrations.",
+        "Scale the checkout deployment out if CPU throttling is observed on more than 20% of pods."
+      ],
+      "escalate_to": "Payments Core primary on-call"
+    }
+  ],
+  "ledger-service": [
+    {
+      "title": "Ledger write failures or posting backlog",
+      "url": "https://runbooks.contoso.example/ledger-service/write-failures",
+      "triggers": ["write", "posting", "backlog", "queue", "ledger", "consistency", "data loss"],
+      "steps": [
+        "STOP: never restart the ledger writer without first capturing the pending posting queue depth.",
+        "Verify the partitioned posting table migration completed on every replica.",
+        "Check for replication lag on postgres-payments; ledger writes block when lag exceeds 30s.",
+        "If lag is the cause, fail over to the healthy replica and page Data Platform.",
+        "Reconcile the posting journal before declaring the incident resolved."
+      ],
+      "escalate_to": "Payments Core incident commander AND Data Platform primary"
+    }
+  ],
+  "fraud-scoring": [
+    {
+      "title": "Fraud scoring latency or model regression",
+      "url": "https://runbooks.contoso.example/fraud-scoring/latency",
+      "triggers": ["latency", "slow", "model", "scoring", "false positive", "timeout", "regression"],
+      "steps": [
+        "Check the model rollout percentage; v7 is currently a partial rollout.",
+        "Compare score distribution between v6 and v7 cohorts on the fraud dashboard.",
+        "If v7 shows a regression, set the rollout percentage back to 0.",
+        "Enable fail-open mode so checkout is not blocked while investigating.",
+        "Notify Risk Platform and open a model regression ticket."
+      ],
+      "escalate_to": "Risk Platform primary on-call"
+    }
+  ],
+  "notification-gateway": [
+    {
+      "title": "Notifications delayed or not delivered",
+      "url": "https://runbooks.contoso.example/notification-gateway/delivery",
+      "triggers": ["email", "sms", "notification", "delivery", "delayed", "not sent"],
+      "steps": [
+        "Check the provider status page before investigating internally.",
+        "Inspect the outbound queue depth; delivery is best-effort within 5 minutes.",
+        "Replay failed messages from the dead letter queue once the provider recovers.",
+        "This is a tier-3 service -- do not page outside business hours unless it is blocking a tier-1 incident."
+      ],
+      "escalate_to": "Customer Engagement, business hours only"
+    }
+  ],
+  "postgres-payments": [
+    {
+      "title": "Payments Postgres availability or replication incident",
+      "url": "https://runbooks.contoso.example/postgres-payments/availability",
+      "triggers": ["postgres", "database", "replication", "lag", "failover", "connection", "pool"],
+      "steps": [
+        "Identify the primary and confirm whether an automatic failover has already occurred.",
+        "Check replication lag and WAL disk usage on every replica.",
+        "Terminate long-running queries above 60s only after capturing the query plan.",
+        "If disk pressure is the cause, expand the volume before failing over.",
+        "RPO is 5 minutes and RTO is 30 minutes -- declare a SEV1 if either is at risk."
+      ],
+      "escalate_to": "Data Platform primary on-call AND the incident commander"
+    }
+  ]
+}

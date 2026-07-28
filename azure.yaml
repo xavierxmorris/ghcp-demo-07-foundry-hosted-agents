@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+#
+# One azd project, one Foundry project, two hosted agents.
+#
+#   ai-project     -> the Foundry project + the shared model deployment (azd provision)
+#   devops-triage  -> hosted agent #1, incident triage with local function tools
+#   docs-qa        -> hosted agent #2, grounded Q&A over a bundled docs corpus
+#
+# `uses: [ai-project]` is what links an agent to the model deployment above.
+# Both agents share one deployment, which is why capacity is 30 and not 10.
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.4'
+
+name: ghcp-demo-07-foundry-hosted-agents
+
+services:
+  # ---------------------------------------------------------------------------
+  # Foundry project + model deployment. Created by `azd provision`.
+  # ---------------------------------------------------------------------------
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - name: gpt-5.4-mini
+        model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: '2026-03-17'
+        sku:
+          name: GlobalStandard
+          capacity: 30
+
+  # ---------------------------------------------------------------------------
+  # Agent 1 — DevOps incident triage
+  # ---------------------------------------------------------------------------
+  devops-triage:
+    host: azure.ai.agent
+    kind: hosted
+    name: devops-triage
+    description: >-
+      Triages production incidents. Classifies an alert's severity (SEV1-SEV4),
+      looks up the owning service and its on-call runbook, checks recent deploys
+      for a likely culprit, and returns a short, structured triage summary with
+      concrete next actions.
+    project: src/devops-triage
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      runtime: python_3_14
+      entryPoint: main.py
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi
+    metadata:
+      tags:
+        - Agent Framework
+        - Responses Protocol
+        - Function Calling
+
+  # ---------------------------------------------------------------------------
+  # Agent 2 — Documentation Q&A
+  # ---------------------------------------------------------------------------
+  docs-qa:
+    host: azure.ai.agent
+    kind: hosted
+    name: docs-qa
+    description: >-
+      Answers questions about the Contoso Payments platform strictly from the
+      bundled documentation corpus. Always cites the source document, and says
+      it does not know rather than guessing when the corpus has no answer.
+    project: src/docs-qa
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      runtime: python_3_14
+      entryPoint: main.py
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi
+    metadata:
+      tags:
+        - Agent Framework
+        - Responses Protocol
+        - Grounded Retrieval
+
+infra:
+  provider: microsoft.foundry

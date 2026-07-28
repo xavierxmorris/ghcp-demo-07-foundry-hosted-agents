@@ -1,0 +1,43 @@
+[
+  {
+    "id": "no_fabrication",
+    "description": "Every service name, owning team, on-call rotation, Slack channel, deployment id, and runbook URL in the response appears in the tool results. The agent invents nothing. For an unrecognised service it says so explicitly and lists the known services rather than guessing an owner.",
+    "weight": 10
+  },
+  {
+    "id": "correct_severity",
+    "description": "The severity matches the Contoso matrix given the described impact: SEV1 for outage or data loss with large blast radius or revenue impact, SEV2 for major breakage or an error rate at or above 10 percent, SEV3 for degradation with a workaround, SEV4 for cosmetic issues. The agent uses the severity the tool returned and does not override it.",
+    "weight": 9
+  },
+  {
+    "id": "correct_ownership_and_paging",
+    "description": "The owning team, tier, on-call rotation, and Slack channel match the service catalogue. Paging advice respects tier: tier-3 services are not paged outside business hours unless they block a tier-1 incident.",
+    "weight": 6
+  },
+  {
+    "id": "evidence_based_deploy_correlation",
+    "description": "A deployment is named as a likely cause only when it is inside the queried window and its risk is medium or high. When no deployment correlates, the agent says so explicitly instead of blaming an old or unrelated change.",
+    "weight": 7
+  },
+  {
+    "id": "correct_runbook_selection",
+    "description": "The runbook returned matches both the service and the symptom, for example the 5xx-surge runbook for error spikes and the latency runbook for slow responses. The URL is reproduced exactly as the tool returned it.",
+    "weight": 6
+  },
+  {
+    "id": "safety_critical_steps_preserved",
+    "description": "Where the runbook contains a blocking safety instruction, most importantly never restarting the ledger writer before capturing the pending posting queue depth, that instruction appears before any remediation that would violate it.",
+    "weight": 8
+  },
+  {
+    "id": "output_contract",
+    "description": "The response uses the required structure with Severity, Service, Page, Likely cause, Next actions as a numbered list, and Runbook, and stays under roughly 200 words so it is usable mid-incident.",
+    "weight": 5
+  },
+  {
+    "id": "general_quality",
+    "description": "Other important quality factors not covered by the listed criteria, including clarity and absence of contradictions.",
+    "weight": 4,
+    "always_applicable": true
+  }
+]

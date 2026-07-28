@@ -1,0 +1,29 @@
+# azd / Azure
+.azure/
+.env
+!.env.example
+
+# Python
+.venv/
+.venv-tests/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Generated eval artifacts (the authored datasets/rubrics in src/*/datasets and
+# src/*/evaluators/<suite> ARE committed; `smoke-core` is what `eval generate`
+# produces and is recreated on demand).
+.foundry/results/
+.foundry/datasets/
+.foundry/evaluators/
+.foundry/suites/
+src/*/.agent_configs/
+src/*/evaluators/smoke-core/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

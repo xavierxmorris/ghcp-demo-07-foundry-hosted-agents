@@ -1,0 +1,62 @@
+{
+  "checkout-api": {
+    "display_name": "Checkout API",
+    "aliases": ["checkout", "checkout-service", "payments-checkout"],
+    "tier": "tier-1",
+    "owning_team": "Payments Core",
+    "oncall_rotation": "payments-core-primary",
+    "slack_channel": "#payments-core-oncall",
+    "escalation_email": "payments-core@contoso.example",
+    "sla": "99.95% monthly availability, p99 < 400ms",
+    "depends_on": ["ledger-service", "fraud-scoring", "postgres-payments"],
+    "dashboards": "https://dashboards.contoso.example/d/checkout-api"
+  },
+  "ledger-service": {
+    "display_name": "Ledger Service",
+    "aliases": ["ledger", "ledgers", "double-entry"],
+    "tier": "tier-1",
+    "owning_team": "Payments Core",
+    "oncall_rotation": "payments-core-primary",
+    "slack_channel": "#payments-core-oncall",
+    "escalation_email": "payments-core@contoso.example",
+    "sla": "99.99% monthly availability, zero tolerance for write loss",
+    "depends_on": ["postgres-payments"],
+    "dashboards": "https://dashboards.contoso.example/d/ledger-service"
+  },
+  "fraud-scoring": {
+    "display_name": "Fraud Scoring",
+    "aliases": ["fraud", "risk-engine", "scoring"],
+    "tier": "tier-2",
+    "owning_team": "Risk Platform",
+    "oncall_rotation": "risk-platform-primary",
+    "slack_channel": "#risk-platform-oncall",
+    "escalation_email": "risk-platform@contoso.example",
+    "sla": "99.9% monthly availability, p99 < 250ms, fail-open permitted",
+    "depends_on": ["feature-store"],
+    "dashboards": "https://dashboards.contoso.example/d/fraud-scoring"
+  },
+  "notification-gateway": {
+    "display_name": "Notification Gateway",
+    "aliases": ["notifications", "email-gateway", "sms-gateway"],
+    "tier": "tier-3",
+    "owning_team": "Customer Engagement",
+    "oncall_rotation": "engagement-business-hours",
+    "slack_channel": "#engagement-support",
+    "escalation_email": "engagement@contoso.example",
+    "sla": "99.5% monthly availability, best-effort delivery within 5 minutes",
+    "depends_on": ["postgres-payments"],
+    "dashboards": "https://dashboards.contoso.example/d/notification-gateway"
+  },
+  "postgres-payments": {
+    "display_name": "Payments Postgres Cluster",
+    "aliases": ["postgres", "payments-db", "database"],
+    "tier": "tier-1",
+    "owning_team": "Data Platform",
+    "oncall_rotation": "data-platform-primary",
+    "slack_channel": "#data-platform-oncall",
+    "escalation_email": "data-platform@contoso.example",
+    "sla": "99.99% monthly availability, RPO 5 minutes, RTO 30 minutes",
+    "depends_on": [],
+    "dashboards": "https://dashboards.contoso.example/d/postgres-payments"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "checkout-api": [
+    {
+      "deployment_id": "chk-2291",
+      "previous_id": "chk-2290",
+      "hours_ago": 2,
+      "author": "priya.raman",
+      "summary": "Enable connection pooling v2 for the ledger client and raise pool size 20 -> 80",
+      "risk": "high"
+    },
+    {
+      "deployment_id": "chk-2290",
+      "previous_id": "chk-2289",
+      "hours_ago": 26,
+      "author": "sam.oyelaran",
+      "summary": "Add structured logging fields to the checkout span",
+      "risk": "low"
+    }
+  ],
+  "ledger-service": [
+    {
+      "deployment_id": "ldg-881",
+      "previous_id": "ldg-880",
+      "hours_ago": 9,
+      "author": "marta.silva",
+      "summary": "Migrate the posting table to a partitioned schema",
+      "risk": "high"
+    }
+  ],
+  "fraud-scoring": [
+    {
+      "deployment_id": "frd-412",
+      "previous_id": "frd-411",
+      "hours_ago": 4,
+      "author": "jon.becker",
+      "summary": "Roll model v7 to 50% of traffic",
+      "risk": "medium"
+    }
+  ],
+  "notification-gateway": [
+    {
+      "deployment_id": "ntf-77",
+      "previous_id": "ntf-76",
+      "hours_ago": 71,
+      "author": "aiko.tanaka",
+      "summary": "Update the SMS provider SDK",
+      "risk": "low"
+    }
+  ],
+  "postgres-payments": []
+}

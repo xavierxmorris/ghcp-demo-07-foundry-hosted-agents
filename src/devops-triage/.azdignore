@@ -1,0 +1,10 @@
+# Files excluded from the deploy package that Foundry builds.
+# Keeping eval assets and local venvs out keeps the upload small and the
+# container image clean.
+.env.example
+.venv/
+__pycache__/
+datasets/
+evaluators/
+eval.yaml
+.agent_configs/

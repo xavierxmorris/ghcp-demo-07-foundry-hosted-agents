@@ -1,0 +1,117 @@
+# Deploys both hosted agents to Azure AI Foundry.
+#
+# Authentication is OIDC workload identity federation -- there are no secrets in
+# this repository. Setup instructions: docs/08-cicd.md
+name: Deploy agents
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'azure.yaml'
+      - '.github/workflows/deploy-agents.yml'
+  workflow_dispatch:
+    inputs:
+      smoke_test:
+        description: Run a remote smoke invoke after deploying
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-agents
+  cancel-in-progress: false
+
+permissions:
+  id-token: write      # required to request the OIDC token
+  contents: read
+
+jobs:
+  deploy:
+    name: Provision and deploy
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+
+      - name: Install Foundry azd extensions
+        run: |
+          azd extension install azure.ai.agents --no-prompt || true
+          azd extension install azure.ai.projects --no-prompt || true
+
+      # Federated credential -- no client secret exists anywhere.
+      - name: Log in to azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider github \
+            --tenant-id "$AZURE_TENANT_ID"
+
+      - name: Log in to Azure CLI (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Select or create the azd environment
+        run: |
+          azd env select "$AZURE_ENV_NAME" 2>/dev/null || \
+          azd env new "$AZURE_ENV_NAME" \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --location "$AZURE_LOCATION" \
+            --no-prompt
+
+      # Idempotent: a no-op when the Foundry project and model already exist.
+      - name: Provision
+        run: azd provision --no-prompt
+
+      - name: Pin the model deployment name
+        run: azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME gpt-5.4-mini
+
+      - name: Deploy both agents
+        run: azd deploy --no-prompt
+
+      - name: Health check
+        run: azd ai agent doctor
+
+      - name: Smoke test the deployed agents
+        if: inputs.smoke_test != false
+        run: |
+          set -euo pipefail
+          echo "::group::devops-triage"
+          azd ai agent invoke devops-triage \
+            "Checkout is returning 5xx for about 12% of requests, roughly 3000 users affected." \
+            | tee triage.txt
+          echo "::endgroup::"
+
+          echo "::group::docs-qa"
+          azd ai agent invoke docs-qa \
+            "How long do I have to submit evidence for a Mastercard chargeback?" \
+            | tee docsqa.txt
+          echo "::endgroup::"
+
+          # Fail the deploy if the agents lost their core behaviour.
+          grep -qi "SEV2"        triage.txt || { echo "triage did not classify severity"; exit 1; }
+          grep -qi "Payments Core" triage.txt || { echo "triage did not identify the owner"; exit 1; }
+          grep -qi "21 days"     docsqa.txt || { echo "docs-qa gave an ungrounded answer"; exit 1; }
+          grep -qi "Sources:"    docsqa.txt || { echo "docs-qa omitted citations"; exit 1; }
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deployed agents"
+            echo ""
+            azd ai agent show devops-triage --output json 2>/dev/null | head -40 || true
+          } >> "$GITHUB_STEP_SUMMARY"

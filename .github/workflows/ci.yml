@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      # No Azure credentials needed: the agents' domain logic imports nothing
+      # from the agent framework or the Azure SDKs. That is the whole point of
+      # the layering rule -- see docs/architecture.md.
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Unit tests
+        run: pytest -q
+
+  validate-manifest:
+    name: Validate azure.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install azd
+        run: curl -fsSL https://aka.ms/install-azd.sh | bash
+
+      - name: Check azure.yaml parses and entry points exist
+        run: |
+          python - <<'PY'
+          import sys, pathlib, re
+
+          text = pathlib.Path("azure.yaml").read_text(encoding="utf-8")
+
+          # Every agent service must point at a project dir whose entryPoint exists.
+          services = re.findall(
+              r"^  ([a-z0-9-]+):\n(?:.*\n)*?    project: (\S+)\n(?:.*\n)*?      entryPoint: (\S+)",
+              text,
+              re.MULTILINE,
+          )
+          if not services:
+              sys.exit("no agent services with codeConfiguration found in azure.yaml")
+
+          failed = False
+          for name, project, entry in services:
+              path = pathlib.Path(project) / entry
+              status = "ok" if path.is_file() else "MISSING"
+              print(f"{name}: {path} [{status}]")
+              failed |= not path.is_file()
+
+          sys.exit("entry point missing" if failed else 0)
+          PY
+
+  eval-datasets:
+    name: Validate eval datasets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every dataset row is valid JSON with the required fields
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+
+          required = {"id", "description", "query", "candidate_response"}
+          failed = False
+
+          for path in sorted(pathlib.Path("src").glob("*/datasets/*/*.jsonl")):
+              rows = 0
+              for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  if not line.strip():
+                      continue
+                  try:
+                      row = json.loads(line)
+                  except json.JSONDecodeError as exc:
+                      print(f"{path}:{n}: invalid JSON: {exc}")
+                      failed = True
+                      continue
+                  missing = required - row.keys()
+                  if missing:
+                      print(f"{path}:{n}: missing fields {sorted(missing)}")
+                      failed = True
+                  rows += 1
+              print(f"{path}: {rows} case(s)")
+
+          sys.exit("eval dataset validation failed" if failed else 0)
+          PY

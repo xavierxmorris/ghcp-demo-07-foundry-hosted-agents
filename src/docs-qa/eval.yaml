@@ -1,0 +1,15 @@
+name: smoke-core
+agent:
+    name: devops-triage
+    kind: hosted
+    version: "1"
+    config: .agent_configs\baseline\metadata.yaml
+dataset:
+    local_uri: C:\Users\xaviermorris\ghcp-demos\ghcp-demo-07-foundry-hosted-agents\src\docs-qa\datasets\grounding-core\grounding-core.jsonl
+evaluators:
+    - name: smoke-core
+      version: "2"
+      local_uri: evaluators\smoke-core\rubric_dimensions.json
+options:
+    eval_model: gpt-5.4-mini
+max_samples: 15
