@@ -2,6 +2,10 @@
 
 **Time:** ~10 minutes
 
+The versions and commands below originate from the July 2026 run.
+[WORKSHOP.md](../WORKSHOP.md) adds the September compatibility and cost checks.
+The offline domain-test track does not require Azure sign-in or provisioning.
+
 ## What you need
 
 | Tool | Minimum tested | Install |
@@ -66,12 +70,16 @@ azd extension install azure.ai.agents
 azd extension install azure.ai.projects
 ```
 
-Already installed? Make sure they're current — an out-of-date extension against a
-newer template is another failure we hit:
+Already installed? Record their actual installed versions before changing them:
 
 ```bash
-azd extension upgrade --all
+azd extension list --installed --output json
 ```
+
+Current Foundry guidance also uses the consolidated `microsoft.foundry`
+extension. Do not bulk-upgrade a working workshop environment without checking
+the template and command compatibility. The catalog `version` and
+`installedVersion` fields may differ; report the latter as the runtime used.
 
 ## 4. Clone and verify
 
@@ -98,12 +106,11 @@ module 01 and 02 entirely offline.
 
 ## 5. Pick a region
 
-This lab uses **`northcentralus`**, which supports Foundry hosted agents. If you
-use another region, confirm your model is available there first:
-
-```bash
-az cognitiveservices account list-skus --location <region> -o table
-```
+The captured lab used **`northcentralus`**. Confirm hosted-agent region support,
+the specific model/version's availability, and subscription quota separately.
+An account-SKU listing is not proof of model availability or capacity.
+Use the [current hosted-agent region list](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#region-availability)
+and the selected model's availability/quota guidance before provisioning.
 
 ## 6. Choose your azd environment name
 
@@ -125,9 +132,10 @@ azd init -e my-agents --subscription <subscription-id> -l northcentralus
 | Azure AI Services account + Foundry project | none |
 | `gpt-5.4-mini` GlobalStandard deployment | none — pay per token |
 | Log Analytics + Application Insights | pay per GB ingested (pennies here) |
-| Hosted agents | billed while serving requests |
+| Hosted agents | CPU/memory consumption across active sessions, including the idle-timeout window |
 
-A complete run of this lab costs well under a dollar. Always finish with:
+Do not promise a fixed total. Evaluation uses model calls too. Confirm the
+selected environment and its resources are disposable before cleanup:
 
 ```bash
 azd down --purge

@@ -4,9 +4,13 @@
 > **two production-shaped AI agents running on Azure AI Foundry**, using
 > **GitHub Copilot** as the pair-programmer the whole way.
 
-Everything in this repo has been **executed end to end against a real Azure
-subscription** — provisioned, deployed, and invoked. The commands in the lab are
-the commands that actually ran.
+The original lab records provisioning, deployment, invocation, and evaluation
+against an Azure subscription. Those are **historical results**, not a claim
+that today's clone or every generated configuration has been revalidated.
+
+**Go deeper:** [WORKSHOP.md](WORKSHOP.md) adds an offline-first lab, tool-versus-agent
+evidence, grounding failure cases, an evaluation preflight, and a cost/cleanup
+checklist. Start there before using the historical cloud commands.
 
 ---
 
@@ -84,6 +88,11 @@ One `azure.yaml` describes all of it. See [`docs/02-anatomy-of-a-hosted-agent.md
 | Python | 3.14 (3.13 also supported) | `python --version` |
 | An Azure subscription | Owner or Contributor + User Access Administrator | `az account show` |
 
+These tooling versions describe the original baseline. Confirm the installed
+azd extensions as well as the core version before cloud execution. The committed
+eval configs contain machine-specific paths and historical evaluator references;
+they are not portable ready-to-run suites. See [evaluation preflight](docs/06-evaluate.md#preflight-before-using-the-saved-configs).
+
 > Prefer zero installs? Open this repo in a **GitHub Codespace** — the
 > [dev container](.devcontainer/devcontainer.json) has everything pre-installed.
 
@@ -114,7 +123,9 @@ azd ai agent invoke devops-triage "Checkout is returning 5xx for 12% of requests
 azd ai agent invoke docs-qa "How long do I have to respond to a Mastercard chargeback?"
 ```
 
-**Tear down when you're done — this costs money:**
+**Tear down when you're done — this costs money.** First confirm the selected
+azd environment, subscription, and resource group are dedicated to this lab;
+`--purge` is destructive and is not appropriate for shared resources:
 
 ```bash
 azd down --purge
@@ -196,7 +207,7 @@ This repo is itself an example of **customising Copilot for a domain**:
 | [`AGENTS.md`](AGENTS.md) | Cross-tool agent instructions (Copilot CLI, Claude Code, Codex) |
 | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Repo-wide rules Copilot applies to every suggestion |
 | [`.github/prompts/`](.github/prompts/) | Reusable prompt files — add a tool, write eval cases, debug a deploy |
-| [`.github/chatmodes/`](.github/chatmodes/) | A focused "Foundry agent developer" chat mode |
+| [`.github/chatmodes/`](.github/chatmodes/) | Historical chat-mode example; current editors use custom agents |
 | [`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml) | Pre-installs tooling for the Copilot **coding agent** |
 | [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/) | Issues shaped for assigning straight to Copilot |
 
@@ -241,25 +252,30 @@ wires those functions to the agent. See [`docs/architecture.md`](docs/architectu
 
 ## Testing
 
-```bash
-python -m venv .venv && .venv/Scripts/activate   # Windows
-# source .venv/bin/activate                       # macOS / Linux
-pip install -r requirements-dev.txt
-pytest
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest
 ```
 
-55 tests, no Azure resources, no model calls, runs in under a second.
+On macOS/Linux use `.venv/bin/python` instead. The 55 domain tests need no
+Azure resources or model calls. Their speed and success do not establish that
+the agent follows its instructions or that a deployment is healthy.
 
 ---
 
 ## Cost
 
-Provisioning creates a Foundry account + project, a `gpt-5.4-mini` GlobalStandard
-deployment, Log Analytics, and Application Insights. The infrastructure is
-essentially free at idle; you pay for **model tokens** and Log Analytics
-ingestion. A full run of this lab costs well under a dollar.
+Budget for model and evaluator tokens, hosted-session CPU and memory,
+telemetry, and any supporting resources. Current hosted-agent documentation
+bills compute across active sessions, including the idle-timeout window; it
+is not limited to the instant a request is executing. There is no guaranteed
+"under a dollar" workshop cost.
 
-`azd down --purge` removes everything.
+Check the [current hosting/pricing guidance](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents#limits-pricing-and-availability)
+(reviewed **7 September 2026**), set a budget, and confirm cleanup in the
+actual subscription. `azd down --purge` targets the selected environment,
+not arbitrary pre-existing or shared resources.
 
 ---
 

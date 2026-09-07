@@ -3,6 +3,31 @@
 **Time:** ~20 minutes
 **Goal:** replace "it looked fine when I tried it" with a number that moves.
 
+## Preflight before using the saved configs
+
+The committed `eval.yaml` files are historical run artifacts, **not portable
+defaults**. As inspected on **7 September 2026**:
+
+- Both contain an absolute path from the author's machine.
+- Both reference `evaluators\smoke-core`, which is not the shipped rubric folder.
+- The docs-qa config names `devops-triage` and references an absent
+  `.agent_configs\baseline\metadata.yaml`.
+
+Before spending tokens, create an environment-specific evaluation configuration
+using the current tooling. Select the intended agent and deployed version,
+resolve the actual dataset and rubric paths, and verify/register the evaluator
+in that project. The shipped rubric directories are `triage-core` and
+`grounding-core`. Do not copy evaluator version numbers from a different project.
+
+Inspect `azd ai agent eval run --help` and the resulting run's target identity.
+The locally inspected `azure.ai.agents` **1.0.0-beta.7** command still lacks an
+`--agent` option; this is a version-specific observation, not a claim about
+future versions. Prefer an explicitly targeted portal/current-tooling run
+over reordering shared deployment configuration to influence target selection.
+
+The examples and scores below document the original July run. See the
+[workshop](../WORKSHOP.md) for a repeatable evidence record.
+
 ## Two kinds of test, and why you need both
 
 | | Unit tests (`tests/`) | Evals (`src/<agent>/eval.yaml`) |
@@ -13,8 +38,9 @@
 | Deterministic? | Yes | No — scored by a judge model |
 | Catches | "severity matrix is wrong" | "the agent ignored the severity tool" |
 
-Unit tests prove `classify_severity("checkout is down")` returns `SEV2`. Only an
-eval proves the *agent* actually calls that tool instead of guessing.
+Unit tests check that `classify_severity("checkout is down")` returns `SEV2`.
+Inspect tool-call traces to establish whether the agent actually called it.
+A correct answer or a favorable judge score alone does not prove tool use.
 
 ## What's in this repo
 
@@ -135,10 +161,10 @@ We hit this: running the `docs-qa` suite with `--config src/docs-qa/eval.yaml`
 still executed against `devops-triage`, and 14 of 15 cases failed for the obvious
 reason. Check the `Agent:` line in the run summary before trusting a score.
 
-Workarounds until the CLI grows an `--agent` flag on `run`:
-- Reorder `azure.yaml` so the agent you want to evaluate is first, or
-- run the eval from the Foundry portal, or
-- keep one agent per azd project in production repos.
+This was the behavior observed with the original extension. Check your installed
+version rather than assuming it is fixed or permanent. Use an explicitly
+selected agent in the Foundry portal/current tooling and verify the run summary.
+Do not casually reorder a shared deployment to work around evaluation selection.
 
 ## Iterating
 
