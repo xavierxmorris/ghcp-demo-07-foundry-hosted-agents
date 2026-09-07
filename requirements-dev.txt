@@ -1,5 +1,5 @@
 # Development-only dependencies. The agents' runtime dependencies live in
 # src/<agent>/requirements.txt -- that is what Foundry installs at deploy time.
 pytest>=8.0
-ruff>=0.6
+ruff>=0.16.6
 pyyaml>=6.0
