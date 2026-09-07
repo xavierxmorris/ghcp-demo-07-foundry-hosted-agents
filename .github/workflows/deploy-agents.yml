@@ -11,6 +11,8 @@ on:
       - 'src/**'
       - 'azure.yaml'
       - '.github/workflows/deploy-agents.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/validate_ci.py'
   workflow_dispatch:
     inputs:
       smoke_test:
@@ -23,7 +25,6 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  id-token: write      # required to request the OIDC token
   contents: read
 
 jobs:
@@ -31,31 +32,60 @@ jobs:
   # configuring OIDC. Setup instructions: docs/08-cicd.md
   check-config:
     name: Check deployment is configured
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
       - id: check
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
         run: |
-          if [[ -n "${{ vars.AZURE_CLIENT_ID }}" && -n "${{ vars.AZURE_TENANT_ID }}" && -n "${{ vars.AZURE_SUBSCRIPTION_ID }}" ]]; then
+          configured=0
+          missing=()
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_ENV_NAME AZURE_LOCATION; do
+            if [[ -n "${!name}" ]]; then
+              configured=$((configured + 1))
+            else
+              missing+=("$name")
+            fi
+          done
+          if [[ "$configured" -eq 5 ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$configured" -ne 0 ]]; then
+            echo "::error::Incomplete deployment configuration. Missing: ${missing[*]}"
+            exit 1
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             {
               echo "### Deployment skipped"
               echo ""
               echo "Azure OIDC is not configured for this repository, so there is nothing to deploy."
-              echo "Set the \`AZURE_CLIENT_ID\`, \`AZURE_TENANT_ID\`, and \`AZURE_SUBSCRIPTION_ID\`"
+              echo "Set all five \`AZURE_*\` repository variables documented in docs/08-cicd.md"
               echo "repository variables to enable it - see [docs/08-cicd.md](../blob/main/docs/08-cicd.md)."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  validate:
+    name: Validate this revision before deployment
+    needs: check-config
+    if: needs.check-config.outputs.configured == 'true' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Provision and deploy
-    needs: check-config
-    if: needs.check-config.outputs.configured == 'true'
-    runs-on: ubuntu-latest
+    needs: [check-config, validate]
+    if: needs.check-config.outputs.configured == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -64,15 +94,19 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install azd
-        uses: Azure/setup-azd@v2
+        uses: Azure/setup-azd@0b7e3a35ab00f2eee7080c845eb39c3f0ebfa553 # v2.4.0
+        with:
+          version: '1.33.0'
 
       - name: Install Foundry azd extensions
         run: |
-          azd extension install azure.ai.agents --no-prompt || true
-          azd extension install azure.ai.projects --no-prompt || true
+          azd extension install microsoft.foundry --no-prompt
+          azd ai agent --help
 
       # Federated credential -- no client secret exists anywhere.
       - name: Log in to azd (OIDC)
@@ -83,15 +117,14 @@ jobs:
             --tenant-id "$AZURE_TENANT_ID"
 
       - name: Log in to Azure CLI (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Select or create the azd environment
+      - name: Create the azd environment in this fresh checkout
         run: |
-          azd env select "$AZURE_ENV_NAME" 2>/dev/null || \
           azd env new "$AZURE_ENV_NAME" \
             --subscription "$AZURE_SUBSCRIPTION_ID" \
             --location "$AZURE_LOCATION" \
@@ -111,7 +144,7 @@ jobs:
         run: azd ai agent doctor
 
       - name: Smoke test the deployed agents
-        if: inputs.smoke_test != false
+        if: github.event_name != 'workflow_dispatch' || inputs.smoke_test
         run: |
           set -euo pipefail
           echo "::group::devops-triage"
@@ -134,9 +167,12 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          DEPLOY_STATUS: ${{ job.status }}
         run: |
           {
-            echo "## Deployed agents"
+            echo "## Agent deployment"
             echo ""
-            azd ai agent show devops-triage --output json 2>/dev/null | head -40 || true
+            echo "Status: $DEPLOY_STATUS"
+            echo "See the health-check and smoke-test steps for execution evidence."
           } >> "$GITHUB_STEP_SUMMARY"

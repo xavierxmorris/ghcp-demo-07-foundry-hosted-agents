@@ -7,19 +7,20 @@ Two workflows ship with this repo:
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| [`ci.yml`](../.github/workflows/ci.yml) | every push + PR | Lint, run 55 unit tests, validate `azure.yaml` |
+| [`ci.yml`](../.github/workflows/ci.yml) | every push + PR; reusable by deployment | Lint, run domain and CI-contract tests, validate both agents, model bindings and nonempty evaluation datasets |
 | [`deploy-agents.yml`](../.github/workflows/deploy-agents.yml) | push to `main`, or manual | `azd provision` + `azd deploy`, then a smoke invoke |
 
 ## CI needs nothing
 
 `ci.yml` runs `ruff` and `pytest`. Because the domain modules have no framework
 or Azure dependencies, CI needs **no Azure credentials at all** — which is the
-practical payoff of the layering rule.
+practical payoff of the layering rule. Deployment calls this same workflow and
+must pass it for the exact revision being deployed before obtaining an OIDC token.
 
 ## Deployment uses OIDC, not secrets
 
 Never put a client secret in GitHub. Use **workload identity federation**: GitHub
-mints a short-lived token, Azure trusts it for a specific repo and branch, and no
+mints a short-lived token, Azure trusts it for a specific repo and environment, and no
 long-lived credential exists anywhere.
 
 ### 1. Create an app registration and service principal
@@ -33,15 +34,19 @@ az ad sp create --id "$APP_ID"
 
 ```bash
 az ad app federated-credential create --id "$APP_ID" --parameters '{
-  "name": "github-main",
+  "name": "github-production",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:xavierxmorris/ghcp-demo-07-foundry-hosted-agents:ref:refs/heads/main",
+  "subject": "repo:xavierxmorris/ghcp-demo-07-foundry-hosted-agents:environment:production",
   "audiences": ["api://AzureADTokenExchange"]
 }'
 ```
 
-The `subject` is matched exactly. Add a second credential for pull requests
-(`...:pull_request`) or environments (`...:environment:production`) as needed.
+The `subject` is matched exactly. This workflow already declares the `production`
+environment, so a branch-only credential does not match. Create that GitHub
+environment and restrict its deployment branches to `main`; configure reviewers
+where your plan supports them. The workflow also rejects deployment from other
+refs. Do not add a pull-request federation credential to make CI pass: offline
+CI must not receive deployment access.
 
 ### 3. Grant roles
 
@@ -81,6 +86,10 @@ not secrets):
 | `AZURE_ENV_NAME` | your azd environment name |
 | `AZURE_LOCATION` | `northcentralus` |
 
+All five variables are required. A completely unconfigured clone reports a
+deployment skip; partial configuration fails with the missing variable names.
+Only the deployment job receives `id-token: write`.
+
 ### 5. Push
 
 ```bash
@@ -90,6 +99,16 @@ git push origin main
 The workflow authenticates via OIDC, runs `azd provision --no-prompt` (a no-op
 when nothing changed), `azd deploy --no-prompt`, and finishes with a smoke invoke
 against the freshly deployed agent. If the smoke invoke fails, the job fails.
+Push deployments always run the smoke assertions. Only a manual dispatch can
+explicitly opt out with `smoke_test: false`. Deployments serialize without
+cancelling a provisioning operation already in progress.
+
+Tooling is pinned to Azure Developer CLI **1.33.0** and the SHA-pinned
+`Azure/setup-azd` **v2.4.0** and `azure/login` **v3.0.2** actions. The current
+`microsoft.foundry` extension installs its required agent/project dependencies;
+installation errors are not ignored. Reviewed **7 September 2026** against the
+[hosted-agent CI/CD quickstart](https://learn.microsoft.com/azure/foundry/agents/quickstarts/set-up-cicd-hosted-agent?pivots=azd)
+and [GitHub OIDC subject guidance](https://docs.github.com/en/actions/reference/security/oidc).
 
 ## Adding an eval gate
 
